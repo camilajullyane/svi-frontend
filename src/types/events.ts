@@ -21,6 +21,7 @@ export interface ApiEvent {
   name: string;
   date: string;
   location: string;
+  description?: string;
 }
 
 export interface ApiEventListItem extends ApiEvent {
@@ -38,6 +39,7 @@ export interface EventPayload {
   name: string;
   date: string;
   location: string;
+  description?: string;
   seats: SeatInput[];
 }
 

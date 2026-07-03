@@ -138,7 +138,7 @@ export function EventsPage() {
                     params={{ eventId: event.id }}
                     to="/events/$eventId"
                   >
-                    Visualizar evento
+                    Confira
                   </Link>
                 </div>
               </article>

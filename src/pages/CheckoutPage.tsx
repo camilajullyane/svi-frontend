@@ -1,9 +1,18 @@
 import { Link, useParams, useRouter } from '@tanstack/react-router';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { getFriendlyErrorMessage } from '../api/client';
 import { createPurchase } from '../api/purchases';
 import { cancelReservation } from '../api/reservations';
 import { useAuth } from '../auth/useAuth';
+
+const RESERVATION_TTL_STORAGE_PREFIX = 'svi.reservation.ttl.';
+const DEFAULT_RESERVATION_TTL_SECONDS = 5 * 60;
+
+interface StoredReservationTtl {
+  expiresAt: string;
+  remainingSeconds: number;
+  createdAt: string;
+}
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -16,6 +25,42 @@ function formatDate(value: string) {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(date);
+}
+
+function formatRemainingTime(seconds: number) {
+  const safeSeconds = Math.max(seconds, 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function readReservationTtl(reservationId: string): StoredReservationTtl | null {
+  const rawValue = window.sessionStorage.getItem(`${RESERVATION_TTL_STORAGE_PREFIX}${reservationId}`);
+
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawValue) as StoredReservationTtl;
+  } catch {
+    return null;
+  }
+}
+
+function getRemainingSeconds(expiresAt: string | null, now: number) {
+  if (!expiresAt) {
+    return null;
+  }
+
+  const expiresAtTime = new Date(expiresAt).getTime();
+
+  if (Number.isNaN(expiresAtTime)) {
+    return null;
+  }
+
+  return Math.max(Math.ceil((expiresAtTime - now) / 1000), 0);
 }
 
 export function CheckoutPage() {
@@ -31,11 +76,55 @@ export function CheckoutPage() {
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const hasExpiredRedirectRef = useRef(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [reservationTtl] = useState(() => readReservationTtl(reservationId));
+  const [fallbackExpiresAt] = useState(
+    () => Date.now() + DEFAULT_RESERVATION_TTL_SECONDS * 1000,
+  );
+  const remainingSeconds = useMemo(() => {
+    const expiresAt = reservationTtl?.expiresAt ?? new Date(fallbackExpiresAt).toISOString();
+    const remainingFromExpiration = getRemainingSeconds(expiresAt, now);
+
+    if (remainingFromExpiration !== null) {
+      return remainingFromExpiration;
+    }
+
+    return reservationTtl?.remainingSeconds ?? DEFAULT_RESERVATION_TTL_SECONDS;
+  }, [fallbackExpiresAt, now, reservationTtl]);
+  const isExpired = remainingSeconds <= 0;
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (!isExpired || success || hasExpiredRedirectRef.current) {
+      return;
+    }
+
+    hasExpiredRedirectRef.current = true;
+    window.sessionStorage.removeItem(`${RESERVATION_TTL_STORAGE_PREFIX}${reservationId}`);
+    void router.navigate({
+      params: { eventId },
+      to: '/events/$eventId/tickets',
+    });
+  }, [eventId, isExpired, reservationId, router, success]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     setSuccess('');
+
+    if (isExpired) {
+      setError('Sua reserva temporaria expirou. Volte ao mapa e escolha o assento novamente.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -53,6 +142,7 @@ export function CheckoutPage() {
           purchase.purchasedAt,
         )}.`,
       );
+      window.sessionStorage.removeItem(`${RESERVATION_TTL_STORAGE_PREFIX}${reservationId}`);
       window.setTimeout(() => {
         void router.navigate({ to: '/dashboard' });
       }, 900);
@@ -70,6 +160,7 @@ export function CheckoutPage() {
 
     try {
       await cancelReservation(reservationId);
+      window.sessionStorage.removeItem(`${RESERVATION_TTL_STORAGE_PREFIX}${reservationId}`);
       await router.navigate({
         params: { eventId },
         to: '/events/$eventId/tickets',
@@ -102,6 +193,26 @@ export function CheckoutPage() {
               Informe o titular e os dados de pagamento para confirmar o ingresso.
             </p>
           </header>
+
+          <div
+            className={`mt-6 rounded-lg border px-4 py-3 ${
+              isExpired
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}
+          >
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold">Reserva temporaria</p>
+              <p className="font-mono text-2xl font-semibold tracking-normal">
+                {formatRemainingTime(remainingSeconds)}
+              </p>
+            </div>
+            <p className="mt-1 text-sm">
+              {isExpired
+                ? 'O prazo de 5 minutos terminou.'
+                : 'Voce tem 5 minutos para concluir o pagamento antes do assento voltar ao mapa.'}
+            </p>
+          </div>
 
           {error ? (
             <div className="mt-6 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -165,7 +276,7 @@ export function CheckoutPage() {
 
               <button
                 className="inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-                disabled={isSubmitting || isCanceling}
+                disabled={isSubmitting || isCanceling || isExpired}
                 type="submit"
               >
                 {isSubmitting ? 'Confirmando...' : 'Confirmar compra'}

@@ -59,6 +59,7 @@ function EventForm({ eventId }: { eventId?: string }) {
   const router = useRouter();
   const isEditing = Boolean(eventId);
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [location, setLocation] = useState('');
   const [seatsText, setSeatsText] = useState('A1, 120.00, standard\nA2, 180.00, vip');
@@ -85,6 +86,7 @@ function EventForm({ eventId }: { eventId?: string }) {
 
         if (isActive) {
           setName(event.title);
+          setDescription(event.description);
           setDate(toDatetimeLocal(event.startsAt));
           setLocation(event.venue);
           setSeatsText(serializeSeats(tickets));
@@ -120,11 +122,13 @@ function EventForm({ eventId }: { eventId?: string }) {
       return;
     }
 
+    const trimmedDescription = description.trim();
     const payload: EventPayload = {
       name,
       date: toIsoDate(date),
       location,
       seats,
+      ...(trimmedDescription ? { description: trimmedDescription } : {}),
     };
 
     try {
@@ -178,6 +182,16 @@ function EventForm({ eventId }: { eventId?: string }) {
                   required
                   type="text"
                   value={name}
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Descricao</span>
+                <textarea
+                  className="mt-2 min-h-28 w-full resize-y rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Resumo opcional para aparecer na listagem e no detalhe do evento"
+                  value={description}
                 />
               </label>
 
