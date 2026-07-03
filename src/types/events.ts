@@ -16,10 +16,53 @@ export interface EventDetails extends EventSummary {
   address: string | null;
 }
 
+export interface ApiEvent {
+  id: number;
+  name: string;
+  date: string;
+  location: string;
+}
+
+export interface ApiEventListItem extends ApiEvent {
+  remainingSeats: number;
+  totalSeats: number;
+}
+
+export interface SeatInput {
+  seat: string;
+  price: string;
+  type: string;
+}
+
+export interface EventPayload {
+  name: string;
+  date: string;
+  location: string;
+  seats: SeatInput[];
+}
+
+export type EventUpdatePayload = Partial<EventPayload>;
+
+export interface SeatMapResponse {
+  event: ApiEvent;
+  seats: ApiSeat[];
+}
+
+export interface ApiSeat {
+  ticketId: number;
+  seat: string;
+  price: string;
+  type: string;
+  status: 'available' | 'reserved' | 'sold';
+  expiresAt: string | null;
+  remainingSeconds: number | null;
+}
+
 export interface TicketOption {
   id: string;
   name: string;
   price: number | null;
+  type: string | null;
   availableQuantity: number | null;
   status: string | null;
   expiresAt: string | null;

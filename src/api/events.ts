@@ -1,5 +1,12 @@
 import { apiRequest } from './client';
-import type { EventDetails, EventSummary, TicketOption } from '../types/events';
+import type {
+  ApiEvent,
+  EventDetails,
+  EventPayload,
+  EventSummary,
+  EventUpdatePayload,
+  TicketOption,
+} from '../types/events';
 
 type RawRecord = Record<string, unknown>;
 
@@ -108,6 +115,7 @@ function normalizeTicket(payload: unknown): TicketOption {
     id: readString(record, ['id', 'ticketId', 'uuid']),
     name: readString(record, ['name', 'title', 'sector', 'seat'], 'Ingresso'),
     price: readNullableNumber(record, ['price', 'amount', 'value']),
+    type: readNullableString(record, ['type', 'category']),
     availableQuantity:
       readNullableNumber(record, ['availableQuantity', 'quantity', 'available', 'remaining']) ??
       (record.status === 'available' ? 1 : 0),
@@ -141,4 +149,24 @@ export async function getEventTickets(eventId: string) {
 
 export function toEventSummary(event: EventDetails): EventSummary {
   return event;
+}
+
+export function createAdminEvent(payload: EventPayload) {
+  return apiRequest<ApiEvent>('/admin/events', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminEvent(eventId: string, payload: EventUpdatePayload) {
+  return apiRequest<ApiEvent>(`/admin/events/${eventId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminEvent(eventId: string) {
+  return apiRequest<{ ok: boolean }>(`/admin/events/${eventId}`, {
+    method: 'DELETE',
+  });
 }

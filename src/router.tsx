@@ -1,5 +1,9 @@
 import { createRouter } from '@tanstack/react-router';
 import type { AuthContextValue } from './auth/AuthContext';
+import { adminEventEditRoute } from './routes/admin-event-edit';
+import { adminEventNewRoute } from './routes/admin-event-new';
+import { adminEventsRoute } from './routes/admin-events';
+import { checkoutRoute } from './routes/checkout';
 import { rootRoute } from './routes/__root';
 import { dashboardRoute } from './routes/dashboard';
 import { eventDetailsRoute } from './routes/event-details';
@@ -13,6 +17,10 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
   dashboardRoute,
+  adminEventsRoute,
+  adminEventNewRoute,
+  adminEventEditRoute,
+  checkoutRoute,
   eventDetailsRoute,
   eventTicketsRoute,
 ]);
